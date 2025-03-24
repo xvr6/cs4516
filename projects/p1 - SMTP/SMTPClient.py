@@ -3,9 +3,9 @@ import base64
 from socket import *
 
 # Email credentials
-sender_email = "prectriv@gmail.com" #replace with your own gmail
-receiver_email = "mlbonavita@wpi.edu" #replace with your own WPI email
-password = "lmdg zlvz utiv mnkq "  #replace with your own App password for your gmail; Use an app password instead of your actual gmail password
+sender_email = "" #TODO: replace with your own gmail
+receiver_email = "" #TODO: replace with your own WPI email
+password = ""  #TODO: replace with your own App password for your gmail; Use an app password instead of your actual gmail password
 #create the App password here:
 #https://support.google.com/accounts/answer/185833?visit_id=638759601307026124-2089972828&p=InvalidSecondFactor&rd=1
 
