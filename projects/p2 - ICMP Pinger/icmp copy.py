@@ -3,6 +3,7 @@ import os
 import struct  
 import time  
 import select  
+import time
 
 # ICMP message type for Echo Request (used for ping)
 ICMP_ECHO_REQUEST = 8
@@ -103,10 +104,28 @@ def ping(host, timeout=1):
     print(f"Pinging {dest} using Python:")
     print("")
 
-    while True:
-        delay = doOnePing(dest, timeout)  # Perform a single ping
-        print(delay)  # Print the result
-        time.sleep(1)  # Wait for 1 second before sending the next ping
+    rtt_list = []  # List to store RTTs
 
+    try:
+        while True:
+            delay = doOnePing(dest, timeout)  # Perform a single ping
+            if "time=" in delay:  # Extract RTT if the ping was successful
+                rtt = float(delay.split("time=")[1].split(" ")[0])
+                rtt_list.append(rtt)
+            print(delay)  # Print the result
+            time.sleep(1)  # Wait for 1 second before sending the next ping
+    except KeyboardInterrupt:
+        # Calculate and display statistics when the user stops the program
+        print("\n--- Ping Statistics ---")
+        if rtt_list:
+            min_rtt = min(rtt_list)
+            max_rtt = max(rtt_list)
+            avg_rtt = sum(rtt_list) / len(rtt_list)
+            print(f"Minimum RTT: {min_rtt:.3f} ms")
+            print(f"Maximum RTT: {max_rtt:.3f} ms")
+            print(f"Average RTT: {avg_rtt:.3f} ms")
+        else:
+            print("No RTTs recorded.")
+            
 # Start pinging google.com
 ping("google.com")
