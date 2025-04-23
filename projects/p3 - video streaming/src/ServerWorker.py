@@ -1,5 +1,5 @@
 from random import randint
-import sys, traceback, threading, socket
+import sys, traceback, threading, socket, time, random
 
 from VideoStream import VideoStream
 from RtpPacket import RtpPacket
@@ -9,6 +9,9 @@ class ServerWorker:
 	PLAY = 'PLAY'
 	PAUSE = 'PAUSE'
 	TEARDOWN = 'TEARDOWN'
+
+	MAX_JITTER = 500  # Maximum jitter in milliseconds
+	percentPacketLoss = 0.1	 # Percentage of packet loss
 	
 	INIT = 0
 	READY = 1
@@ -22,42 +25,40 @@ class ServerWorker:
 	clientInfo = {}
 	
 	def __init__(self, clientInfo):
+		"""Initialize the ServerWorker with client information."""
 		self.clientInfo = clientInfo
+		self.concluded = False  # Flag to indicate if the video stream has concluded
 		
 	def run(self):
+		"""Start a thread to receive RTSP requests."""
 		threading.Thread(target=self.recvRtspRequest).start()
 	
 	def recvRtspRequest(self):
-		"""Receive RTSP request from the client."""
+		"""Receive RTSP requests from the client."""
 		connSocket = self.clientInfo['rtspSocket'][0]
-		while True:   
-			try:         
-				data = connSocket.recv(256).decode()
-			except ConnectionResetError:
-   				print("xy: Connection reset by peer")
+		while True:            
+			data = connSocket.recv(256)  # Receive data from the client
 			if data:
-				print("Data received:\n" + data)
-				self.processRtspRequest(data)
+				print("Data received:\n" + data.decode())  # Print the received data
+				self.processRtspRequest(data)  # Process the RTSP request
 	
 	def processRtspRequest(self, data):
-		"""Process RTSP request sent from the client."""
+		"""Process RTSP requests sent by the client."""
 		# Get the request type
-		request = data.split('\n')
-		print("xy request in ServerWorker: ", request)
+		decodedData = data.decode()
+		request = decodedData.split('\n')
 		line1 = request[0].split(' ')
 		requestType = line1[0]
 		
-		# Fill in start
 		# Get the media file name
-		# filename = ....
-		# Fill in end
-
+		filename = line1[1]
+		
 		# Get the RTSP sequence number 
 		seq = request[1].split(' ')
-		print("xy seq in ServerWorker: ", seq)
-
+		
 		# Process SETUP request
 		if requestType == self.SETUP:
+			"""Handle the SETUP request to initialize the video stream."""
 			if self.state == self.INIT:
 				# Update state
 				print("processing SETUP\n")
@@ -73,23 +74,19 @@ class ServerWorker:
 				
 				# Send RTSP reply
 				self.replyRtsp(self.OK_200, seq[1])
-
-				# Fill in start
-				# Get the RTP/UDP port used by client from the last line of client request
-				# self.clientInfo['rtpPort'] = ....
-				print("xy: self.clientInfo['rtpPort']", self.clientInfo['rtpPort'])
-				# Fill in end
 				
+				# Get the RTP/UDP port from the last line
+				self.clientInfo['rtpPort'] = request[2].split(' ')[3]
+		
 		# Process PLAY request 		
 		elif requestType == self.PLAY:
+			"""Handle the PLAY request to start streaming video."""
 			if self.state == self.READY:
 				print("processing PLAY\n")
 				self.state = self.PLAYING
 				
-				# Fill in start
-				# Create a new socket for RTP based on UDP
-				# self.clientInfo["rtpSocket"] = ...
-				# Fill in end
+				# Create a new socket for RTP/UDP
+				self.clientInfo["rtpSocket"] = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 				
 				self.replyRtsp(self.OK_200, seq[1])
 				
@@ -100,37 +97,26 @@ class ServerWorker:
 		
 		# Process PAUSE request
 		elif requestType == self.PAUSE:
+			"""Handle the PAUSE request to pause the video stream."""
 			if self.state == self.PLAYING:
 				print("processing PAUSE\n")
 				self.state = self.READY
 				
-				#self.clientInfo['event'].set()
-				# Handle the error gracefully, such as logging the error or notifying the user
-				if 'event' in self.clientInfo:
-					self.clientInfo['event'].set()
-				else:
-					print("xy Error: 'event' key does not exist in clientInfo dictionary")
+				self.clientInfo['event'].set()
 			
 				self.replyRtsp(self.OK_200, seq[1])
 		
 		# Process TEARDOWN request
 		elif requestType == self.TEARDOWN:
+			"""Handle the TEARDOWN request to stop the video stream."""
 			print("processing TEARDOWN\n")
 
-			# Handle the error gracefully, such as logging the error or notifying the user
-			if 'event' in self.clientInfo:
-				self.clientInfo['event'].set()
-			else:
-				print("xy Error: 'event' key does not exist in clientInfo dictionary")
+			self.clientInfo['event'].set()
 			
 			self.replyRtsp(self.OK_200, seq[1])
 			
 			# Close the RTP socket
-			# Handle the error gracefully, such as logging the error or notifying the user
-			if 'rtpSocket' in self.clientInfo:
-				self.clientInfo['rtpSocket'].close()
-			else:
-				print("xy Error: 'rtpSocket' key does not exist in clientInfo dictionary")
+			self.clientInfo['rtpSocket'].close()
 			
 	def sendRtp(self):
 		"""Send RTP packets over UDP."""
@@ -139,23 +125,38 @@ class ServerWorker:
 			
 			# Stop sending if request is PAUSE or TEARDOWN
 			if self.clientInfo['event'].isSet(): 
-				break 
-				
+				break
+
 			data = self.clientInfo['videoStream'].nextFrame()
 			if data: 
 				frameNumber = self.clientInfo['videoStream'].frameNbr()
+
+				# Simulate packet loss
+				if self.percentPacketLoss > random.random():
+					continue
+
+				# Add jitter to simulate network delay
+				randJitter = randint(0, self.MAX_JITTER)
+				time.sleep(randJitter / 1000)  # Jitter in seconds
+
 				try:
 					address = self.clientInfo['rtspSocket'][1][0]
 					port = int(self.clientInfo['rtpPort'])
 					self.clientInfo['rtpSocket'].sendto(self.makeRtp(data, frameNumber),(address,port))
 				except:
 					print("Connection Error")
-					#print '-'*60
-					#traceback.print_exc(file=sys.stdout)
-					#print '-'*60
+			elif not self.concluded:
+				concluded = True
+				frameNumber = self.clientInfo['videoStream'].frameNbr()
+				try:
+					address = self.clientInfo['rtspSocket'][1][0]
+					port = int(self.clientInfo['rtpPort'])
+					self.clientInfo['rtpSocket'].sendto(self.makeRtp(data, frameNumber+1),(address,port))
+				except:
+					print("Connection Error")
 
 	def makeRtp(self, payload, frameNbr):
-		"""RTP-packetize the video data."""
+		"""Create an RTP packet with the given payload and frame number."""
 		version = 2
 		padding = 0
 		extension = 0
@@ -172,9 +173,9 @@ class ServerWorker:
 		return rtpPacket.getPacket()
 		
 	def replyRtsp(self, code, seq):
-		"""Send RTSP reply to the client."""
+		"""Send an RTSP reply to the client."""
 		if code == self.OK_200:
-			#print "200 OK"
+			# Send a 200 OK response
 			reply = 'RTSP/1.0 200 OK\nCSeq: ' + seq + '\nSession: ' + str(self.clientInfo['session'])
 			connSocket = self.clientInfo['rtspSocket'][0]
 			connSocket.send(reply.encode())
@@ -182,14 +183,5 @@ class ServerWorker:
 		# Error messages
 		elif code == self.FILE_NOT_FOUND_404:
 			print("404 NOT FOUND")
-			#Fill in start 
-			# send a 404 NOT FOUND message back to client if the the file is not found
-			#Fill in end
-			
 		elif code == self.CON_ERR_500:
 			print("500 CONNECTION ERROR")
-			#Fill in start 
-			# send a 500 CONNECTION ERROR message back to client if there is a connection error
-			#Fill in end
-			
-
