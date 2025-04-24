@@ -1,4 +1,5 @@
-import sys, socket
+import sys
+import socket
 from ServerWorker import ServerWorker
 
 class Server:	
@@ -6,7 +7,7 @@ class Server:
 		"""Main method to start the server."""
 		try:
 			SERVER_PORT = int(sys.argv[1])  # Get the server port from command-line arguments
-		except:
+		except (IndexError, ValueError):
 			print("[Usage: Server.py Server_port]\n")  # Print usage instructions if arguments are invalid
 			return
 		

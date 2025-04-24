@@ -1,4 +1,3 @@
-import sys
 from time import time
 HEADER_SIZE = 12
 
@@ -6,6 +5,7 @@ class RtpPacket:
 	header = bytearray(HEADER_SIZE)
 	
 	def __init__(self):
+		"""Initialize an empty RTP packet."""
 		pass
 		
 	def encode(self, version, padding, extension, cc, seqnum, marker, pt, ssrc, payload):

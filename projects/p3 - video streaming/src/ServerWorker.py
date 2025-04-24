@@ -1,6 +1,8 @@
 from random import randint
-import sys, traceback, threading, socket, time, random
-
+import threading
+import socket
+import time
+import random
 from VideoStream import VideoStream
 from RtpPacket import RtpPacket
 
@@ -37,10 +39,14 @@ class ServerWorker:
 		"""Receive RTSP requests from the client."""
 		connSocket = self.clientInfo['rtspSocket'][0]
 		while True:            
-			data = connSocket.recv(256)  # Receive data from the client
-			if data:
-				print("Data received:\n" + data.decode())  # Print the received data
-				self.processRtspRequest(data)  # Process the RTSP request
+			try:
+				data = connSocket.recv(256)  # Receive data from the client
+				if data:
+					print("Data received:\n" + data.decode())  # Print the received data
+					self.processRtspRequest(data)  # Process the RTSP request
+			except ConnectionResetError:
+				print("Client disconnected.")
+				break
 	
 	def processRtspRequest(self, data):
 		"""Process RTSP requests sent by the client."""
@@ -142,18 +148,10 @@ class ServerWorker:
 				try:
 					address = self.clientInfo['rtspSocket'][1][0]
 					port = int(self.clientInfo['rtpPort'])
-					self.clientInfo['rtpSocket'].sendto(self.makeRtp(data, frameNumber),(address,port))
-				except:
+					self.clientInfo['rtpSocket'].sendto(self.makeRtp(data, frameNumber), (address, port))
+				except OSError:
 					print("Connection Error")
-			elif not self.concluded:
-				concluded = True
-				frameNumber = self.clientInfo['videoStream'].frameNbr()
-				try:
-					address = self.clientInfo['rtspSocket'][1][0]
-					port = int(self.clientInfo['rtpPort'])
-					self.clientInfo['rtpSocket'].sendto(self.makeRtp(data, frameNumber+1),(address,port))
-				except:
-					print("Connection Error")
+					break
 
 	def makeRtp(self, payload, frameNbr):
 		"""Create an RTP packet with the given payload and frame number."""

@@ -4,8 +4,8 @@ class VideoStream:
 		self.filename = filename
 		try:
 			self.file = open(filename, 'rb')  # Open the video file in binary read mode
-		except:
-			raise IOError  # Raise an error if the file cannot be opened
+		except FileNotFoundError:
+			raise IOError(f"File {filename} not found.")  # Raise an error if the file cannot be opened
 		self.frameNum = 0  # Initialize the frame number
 		
 	def nextFrame(self):
